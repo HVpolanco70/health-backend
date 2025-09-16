@@ -3,9 +3,13 @@ from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import date
 import shutil as sh
 import os
+
+# For AI analysis
+import openai
+
+openai.api_key = os.getenv("OPENAI_API_KEY")  # Make sure to set this in Render environment
 
 app = FastAPI()
 
@@ -56,3 +60,24 @@ async def add_entry(
 @app.get("/journal-entries", response_model=List[Entry])
 def get_entries():
     return entries
+
+@app.post("/analyze")
+async def analyze(data: dict):
+    symptoms = data.get("symptoms", "")
+    notes = data.get("notes", "")
+
+    prompt = f"""Patient reports the following symptoms: {symptoms}.
+    Notes: {notes}.
+    List possible conditions that could be related, whether urgent care is needed,
+    and what kind of doctor or tests might be helpful. Keep the explanation simple and patient-friendly."""
+
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        suggestion = response["choices"][0]["message"]["content"]
+    except Exception as e:
+        suggestion = f"Error generating analysis: {str(e)}"
+
+    return {"suggestion": suggestion}
